@@ -124,6 +124,8 @@ this_product_option_keywords = st.multiselect(
     get_option_keywords(this_product_category)
     )
 
+random.shuffle(this_product_option_keywords)
+
 this_product_generic_keyword = get_generic_keyword(this_product_category)
 this_product_popular_keyword = get_popular_keyword(this_product_category)
 
@@ -131,7 +133,7 @@ this_product_popular_keyword = get_popular_keyword(this_product_category)
 if st.button('Generate'):
     generated_title = " ".join([this_product_brand_name, this_product_generic_keyword ,\
                      this_product_bracket_text, this_product_popular_keyword])+" "+\
-                        " ".join(random.shuffle(this_product_option_keywords))
+                        " ".join(this_product_option_keywords)
 
     logtxtbox.text_area("Generated title: ",generated_title , height = 100)
 
