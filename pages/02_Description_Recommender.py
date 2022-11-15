@@ -3,12 +3,8 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import re
-import spacy
-import requests
 
 from fuzzywuzzy import fuzz
-
-nlp = spacy.load("en_core_web_sm")
 
 #title
 st.title("Description Recommender")
@@ -16,25 +12,24 @@ st.markdown("---")
 #load dataset from GSheet
 csv_url1 = 'https://docs.google.com/spreadsheets/d/1bVFT4xXYUoa5WYxxMfhoTcfcwE3k3---_uKqHIKeZVQ/export?format=csv&id=1bVFT4xXYUoa5WYxxMfhoTcfcwE3k3---_uKqHIKeZVQ&gid=1404104541'
 csv_url2 = 'https://docs.google.com/spreadsheets/d/16uXyAlWvroi6TyaG_MhpSFoZAUM1N3zDbG_Nei-SZjg/export?format=csv&id=16uXyAlWvroi6TyaG_MhpSFoZAUM1N3zDbG_Nei-SZjg&gid=1860382666'
-#res1 = requests.get(csv_url1)
-#res2 = requests.get(csv_url2)
-#open('raw_query_data_sept_oct.csv', 'wb').write(res1.content)
-#open('descriptions_word_database.csv', 'wb').write(res2.content)
 
 df = pd.read_csv(csv_url1)
 df_words = pd.read_csv(csv_url2)
 
 # string to array
 def str_to_arr(text):
+    '''Input: string. Output: array of sentences split based on a given pattern'''
     pattern = '\|remove'
     return re.split(pattern, text)
 
 # array to string
 def arr_to_str(text_array):
+    '''Input: array. Output: string containing combined elements of array'''
     return " ".join([w for w in text_array])
 
 # remove blanks and nan
 def clean_desc(array):
+    '''Input: array. Output: array without blanks or nan values and with lower cased text'''
     desc_arr = []
     for text in array:
         if (text == "") | (text == 'nan'):
@@ -45,24 +40,29 @@ def clean_desc(array):
 
 # assign levels by page_num (top:1-3 others:4--)
 def get_level(page):
+    '''Input: number. Output: assigned level based on the product page number in query search'''
     if page < 4:
         return 'top'
     else:
         return 'others'
 
+# apply functions
 df['level'] = df.apply(lambda x: get_level(x['page_num']), axis=1)
 df['description'] = df.apply((lambda x: str_to_arr(str(x['desc_text']))), axis = 1)
 df['desc_arr_'] = df.apply((lambda x: clean_desc(x['description'])), axis = 1)
 df['desc_text_'] = df.apply((lambda x: arr_to_str(x['desc_arr_'])), axis = 1)
 
+# get relevant data from dataframe and drop duplicates
 df = df[df['desc_text_'] != ''].drop(['title', 'description', 'desc_text','rating', 'rating_num', 'rank', 'video', 'image_count',\
                                       'image'],axis=1)
 df = df.drop_duplicates(['desc_text_']).reset_index(drop=True)
 
 def fuzzy_ratio(word, keyword):
+    '''Input: 2 words to be compared. Output: similarity score of these words from fuzzywuzzy'''
     return fuzz.ratio(word, keyword)
 
 def fuzzy_search(keyword):
+    '''Input: keywords. Output: Most similar words to keywords based on word database'''
     words = re.split(' ', keyword)
     words_clean = [w for w in words if len(w) > 1]
     
@@ -74,10 +74,11 @@ def fuzzy_search(keyword):
     return keywords
 
 def desc_clean(category, keyword):
-    
-    # find closest words to keywords
+    '''Input: category and keywords. Output: array of phrases based on the chosen category and keywords'''
+    # find closest words to keywords from database
     words = fuzzy_search(keyword)
     
+    # get data of specific category and make these a list
     df_cat = df[(df['category']==category)]
     descriptions = df_cat.desc_arr_.tolist()
     
@@ -95,17 +96,7 @@ def desc_clean(category, keyword):
         # split bullet points into phrases
         phrases = re.split('[\,\.\;\!\?]', bullet)
         
-        # emojis patterns
-        emoji_pattern = re.compile("["
-        u"\U0001F600-\U0001F64F"  # emoticons
-        u"\U0001F300-\U0001F5FF"  # symbols & pictographs
-        u"\U0001F680-\U0001F6FF"  # transport & map symbols
-        u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
-                           "]+", flags=re.UNICODE)
-        
         for phrase in phrases:
-            # remove emoji
-            phrase = emoji_pattern.sub(r'', phrase)
             phrase = re.sub('-', ' ', phrase)
             phrase = re.sub('[0-9]', '*', phrase)
             
@@ -119,7 +110,17 @@ def desc_clean(category, keyword):
                 clean_phrases.append(phrase)
     return clean_phrases, words
 
+def randomize_index_array(n):
+    '''Input: n number of values. Output: array of randomly sorted numbers from 0 to n'''
+    array = np.random.rand(1,n).argsort(axis=-1)
+    return array[0]
+
 def desc_kw(category, keyword, n):
+    '''Input: category, keywords, and n number of phrases. 
+        Outputs: 1. if input n is larger than the available phrases, returns all values
+                 2. if there are no available phrases, returns an empty array
+                 3. else returns an array of n number of random phrases
+                    '''
     category = category.lower().strip()
     keyword = keyword.lower().strip()
     phrases, words = desc_clean(category, keyword)
@@ -149,12 +150,16 @@ def desc_kw(category, keyword, n):
     df_desc = pd.DataFrame({'key_desc':key_phrases})
     key_phrases = df_desc.sort_values(['key_desc'], ascending=True)['key_desc'].tolist()
     
-    if n == 'all':
-        return key_phrases, len(key_phrases)
-    elif len(key_phrases) < n:
+    if (n == 'all')|(n >= len(key_phrases)):
+        return key_phrases
+    elif len(key_phrases) == n:
         return []
     else:
-        random_phrases = np.random.choice(key_phrases, n)
+        random_ind = randomize_index_array(len(key_phrases))
+        random_phrases = []
+        for i in range(0, n):
+            rand_phrase = key_phrases[random_ind[i]]
+            random_phrases.append(rand_phrase)
         return random_phrases
 
 PRODUCT_CATEGORIES = ['', 'Instant Coffee', 'Ground Coffee', 'Herbal Tea',\
@@ -166,13 +171,6 @@ category = st.selectbox(
         "What is your category?",
         PRODUCT_CATEGORIES
     )
-
-keywords = st.text_input(
-    "Word Search: ")
-search_words = ", ".join([w for w in fuzzy_search(keywords)])
-
-n = 3 # number of phrases
-phrases = desc_kw(str(category), str(keywords), n)
 
 KEYWORDS_PER_CATEGORY = {'':[],\
                          'Instant Coffee':['add hot water', 'premium', 'quality', 'organic'], \
@@ -191,19 +189,31 @@ KEYWORDS_PER_CATEGORY = {'':[],\
                          'Composition Notebooks':['wide ruled', 'sewn binding', 'ruled sheets'],\
                          "Women's Tote Handbags":['tote bag', 'zipper pockets', 'snap closure']}
 
-suggested_keywords = ", ".join([w for w in KEYWORDS_PER_CATEGORY[category]])
-st.write('Suggested Keywords: ', suggested_keywords)    
+if category != '':
+    suggested_keywords = ", ".join([w for w in KEYWORDS_PER_CATEGORY[category]])
+    st.write('Suggested Keywords: ', suggested_keywords)    
+    
+    keywords = st.text_input("Word Search: ")
+    search_words = ", ".join([w for w in fuzzy_search(keywords)])
 
-if st.button("Search"):
-    if (keywords == '')|(category == ''):
-        st.write('')
-        st.error('Please choose a **category** and input **keywords**')
-    else:
-        if len(phrases) >= 3 :
+    n = st.number_input('Number of Phrases: ', step=1) # number of phrases
+    phrases = desc_kw(str(category), str(keywords), n)
+    if st.button("Search"):
+        
+        if (keywords == '')|(category == '')|(n == 0):
+            st.write('')
+            st.error('Please choose a **category**, input **keywords**, and number of phrases')
+        else:            
             st.write('Keywords: ', search_words)
-            st.write('Sample Phrases:')
-            for i, phrase in zip(range(1,n+1), phrases):
+            if n == 0:
+                st.write('')
+            elif len(phrases) == 0:
+                st.write('No phrases found in database. Please input another keyword')
+            elif n > len(phrases):
+                st.write("Sample Phrases (" + str(len(phrases)) + "):")
+            else:
+                st.write("Sample Phrases (" + str(n)+ "):")
+
+            for i, phrase in zip(range(1, n+1), phrases):
                 st.write(i, phrase)
-        else:
-            st.write('Keywords: ', search_words)
-            st.write('No phrases found in database. Please input another keyword')
+            

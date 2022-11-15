@@ -102,14 +102,14 @@ if this_product_category in PRODUCT_CATEGORY_BRACKET1:
     if 'Coffee' in this_product_category:
         this_product_coffee_roast_type = st.selectbox(       
             "What roast level are the coffee beans?",
-            ['light roast','medium roast','dark roast']
+            ['Light Roast','Medium Roast','Dark Roast']
         )
 
     if 'Spirulina' in this_product_category:
         print('Coffee detected')
         this_product_spirulina_form = st.selectbox(
             "Is your product in powder or tablet form?",
-            ['powder','tablet'],
+            ['Powder','Tablet'],
         this_product_spirulina_form = this_product_spirulina_form + 's' if this_product_spirulina_form =='tablet' else this_product_spirulina_form
         )
 
